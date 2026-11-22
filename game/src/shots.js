@@ -1,9 +1,10 @@
 // The Velvet Vault — shots: deterministic staged frames for screenshots.
 // ?shot=start shows the title over a live room; ?shot=play a mid-heist
-// Royal Mint with lookout cones, lasers, cameras, loot and the alarm meter
-// all in one frame; ?shot=alarm a lockdown chase in the Diamond Exchange;
-// ?shot=win the getaway screen. Every shot is a real render of the game's
-// own code. Banners are cleared in the play shot so nothing covers the room.
+// Crown Jewels with a lookout cone, a dog cone, the keycard door and the
+// gold keycard, lasers, cameras, loot and the alarm meter all in one frame;
+// ?shot=alarm a lockdown chase in the Diamond Exchange; ?shot=win the
+// getaway screen. Every shot is a real render of the game's own code.
+// Banners are cleared in the play shot so nothing covers the room.
 
 import { money } from './config.js';
 
@@ -20,16 +21,18 @@ export function applyShot(game, startLevel, { LEVELS }) {
     game.screen = 'title';
     game.guards[0].x = 880; game.guards[0].y = 240; game.guards[0].angle = Math.PI / 2;
     game.guards[1].x = 460; game.guards[1].y = 520; game.guards[1].angle = 0;
-    game.hintText = 'Pick a job below — or press 1-7 to jump straight in.';
+    game.hintText = 'Pick a job below — or press 1-9 to jump straight in.';
     return true;
   }
 
   if (shot === 'play') {
-    // Mid-heist in the Royal Mint: thief sneaking across the open floor
-    // under the lookout's wide cone, all three lasers live, cameras
-    // sweeping, the crown still on its plinth, alarm at 35%.
+    // Mid-heist in the Crown Jewels (job 8): thief sneaking across the
+    // open floor under the lookout's wide cone, a guard dog about to catch
+    // the scent, both lasers live, cameras sweeping, the gold keycard
+    // still on its stand east, the red keycard door shut over the crown,
+    // alarm at 35%.
     // game.time = 0.6 puts every laser in its live window.
-    startLevel(6);
+    startLevel(7);
     game.screen = 'play';
     game.time = 0.6;
     game.banner = null;
@@ -44,17 +47,19 @@ export function applyShot(game, startLevel, { LEVELS }) {
     game.alarm = 35;
     game.peakAlarm = 35;
     game.timeLeft = 168;
-    // Lookout 1 sweeps down onto the thief (scan sets its angle); "?" up.
+    // Lookout sweeps down onto the thief (scan sets its angle); "?" up.
     game.guards[0].scan = 0.95; game.guards[0].angle = 2.36; game.guards[0].suspicion = 0.45;
-    // Lookout 2 watches the east corridor.
-    game.guards[1].scan = -0.71; game.guards[1].angle = 2.54;
-    game.guards[2].x = 700; game.guards[2].y = 520; game.guards[2].angle = -2.89;
-    game.guards[3].x = 240; game.guards[3].y = 300; game.guards[3].angle = 0;
+    // Dog 1 has the scent: close in, cone on the thief, "?" up.
+    game.guards[1].x = 380; game.guards[1].y = 400; game.guards[1].angle = 0.53; game.guards[1].suspicion = 0.5;
+    // Dog 2 watches the east corridor by the keycard.
+    game.guards[2].x = 1100; game.guards[2].y = 560; game.guards[2].angle = Math.PI;
+    game.guards[3].x = 700; game.guards[3].y = 520; game.guards[3].angle = -2.89;
+    game.guards[4].x = 1000; game.guards[4].y = 300; game.guards[4].angle = 0;
     game.cameras[0].t = 1.2;
     game.cameras[1].t = 2.6;
     game.cameras[2].t = 0.4;
     game.coins.push({ x: 820, y: 470, t: 9 });
-    game.hintText = 'The crown is past the lasers — the lookout sweeps the middle floor. Time the blink.';
+    game.hintText = 'The crown is behind the keycard door — grab the gold card, mind the dogs.';
     return true;
   }
 
@@ -88,19 +93,19 @@ export function applyShot(game, startLevel, { LEVELS }) {
     game.coins.push({ x: 760, y: 420, t: 9 });
     game.banner = 'LOCKDOWN! Reach the exit!';
     game.bannerT = 1;
-    game.hintText = 'LOCKDOWN — the vault is cracked, but the room is hunting you. Run for the green door!';
+    game.hintText = 'LOCKDOWN — vault cracked. Run for the green door!';
     return true;
   }
 
   if (shot === 'win') {
-    // Getaway screen after the final job: the crew escapes, all 7 jobs done.
-    startLevel(6);
+    // Getaway screen after the final job: the crew escapes, all 9 jobs done.
+    startLevel(8);
     game.screen = 'win';
     game.levelScore = 5200;
     game.clearBonus = 1800;
     game.clearTotal = 7000;
-    game.score = 21400;
-    game.totalLoot = 17900;
+    game.score = 24800;
+    game.totalLoot = 20400;
     game.timesCaught = 1;
     game.bestPeak = 22;
     game.peakAlarm = 22;

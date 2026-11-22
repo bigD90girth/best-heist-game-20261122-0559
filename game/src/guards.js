@@ -4,8 +4,10 @@
 
 import { TUNE, angleDiff, clamp, dist, segmentHitsRect } from './config.js';
 
+// Guard dogs patrol fast on a short leash: they see only a short way,
+// but they are quick, they spot you fast, and a tossed coin never moves them.
 export function makeGuard(def) {
-  // Lookouts stand a fixed post (x, y, base facing); patrollers walk a path.
+  // Lookouts stand a fixed post (x, y, base facing); patrollers and dogs walk a path.
   const [sx, sy] = def.type === 'lookout' ? [def.x, def.y] : def.path[0];
   return {
     type: def.type ?? 'patrol',
@@ -43,17 +45,20 @@ export function canSee(gx, gy, angle, range, fov, tx, ty, blockers) {
 export function updateGuard(g, dt, game) {
   const { thief, blockers } = game;
   const isLookout = g.type === 'lookout';
+  const isDog = g.type === 'dog';
   const range = isLookout
     ? TUNE.lookoutRange
-    : thief.sneaking ? TUNE.guardRange * 0.62 : TUNE.guardRange;
-  const fov = isLookout ? TUNE.lookoutFov : TUNE.guardFov;
+    : isDog
+      ? TUNE.dogRange
+      : thief.sneaking ? TUNE.guardRange * 0.62 : TUNE.guardRange;
+  const fov = isLookout ? TUNE.lookoutFov : isDog ? TUNE.dogFov : TUNE.guardFov;
   const seen = !thief.hidden && !game.smokeActive && canSee(g.x, g.y, g.angle, range, fov, thief.x, thief.y, blockers);
   g.seen = seen;
 
   // Suspicion grows faster up close and when the thief runs; lookouts are sharper.
   if (seen) {
     const closeness = 1 - dist(g.x, g.y, thief.x, thief.y) / range;
-    const rate = (isLookout ? TUNE.lookoutSuspicion : TUNE.suspicionRate)
+    const rate = (isLookout ? TUNE.lookoutSuspicion : isDog ? TUNE.dogSuspicion : TUNE.suspicionRate)
       * (0.7 + closeness * 1.1) * (thief.sneaking ? 0.7 : 1);
     g.suspicion = clamp(g.suspicion + rate * dt, 0, 1);
     game.lastSeen = { x: thief.x, y: thief.y, t: game.time };
@@ -83,10 +88,12 @@ export function updateGuard(g, dt, game) {
     return;
   }
 
+  // Dogs chase at their own sprint; patrollers chase at guard speed.
   if (g.chase) {
     const target = game.lastSeen ?? { x: thief.x, y: thief.y };
-    moveToward(g, target.x, target.y, TUNE.guardChase, dt);
-    if (dist(g.x, g.y, thief.x, thief.y) < 40) moveToward(g, thief.x, thief.y, TUNE.guardChase, dt);
+    const speed = isDog ? Math.max(TUNE.guardChase, TUNE.dogSpeed) : TUNE.guardChase;
+    moveToward(g, target.x, target.y, speed, dt);
+    if (dist(g.x, g.y, thief.x, thief.y) < 40) moveToward(g, thief.x, thief.y, speed, dt);
     return;
   }
 
@@ -108,7 +115,7 @@ export function updateGuard(g, dt, game) {
     return;
   }
 
-  // Patrol: walk the waypoints, pause and scan at each one.
+  // Patrol: walk the waypoints, pause and scan at each one. Dogs run it fast.
   const [tx, ty] = g.path[g.wp];
   if (g.wait > 0) {
     g.wait -= dt;
@@ -123,7 +130,7 @@ export function updateGuard(g, dt, game) {
     g.scan = 0;
     return;
   }
-  moveToward(g, tx, ty, TUNE.guardSpeed, dt);
+  moveToward(g, tx, ty, isDog ? TUNE.dogSpeed : TUNE.guardSpeed, dt);
 }
 
 function moveToward(g, tx, ty, speed, dt) {
@@ -143,11 +150,12 @@ export function guardCatchesThief(g, thief) {
 }
 
 // Send every patrolling guard in earshot to look at a tossed coin.
-// Lookouts hold their post — a coin never moves them.
+// Lookouts hold their post — a coin never moves them. Dogs ignore coins:
+// they guard by smell, not by sound.
 export function distractGuards(guards, x, y) {
   let n = 0;
   for (const g of guards) {
-    if (g.type === 'lookout') continue;
+    if (g.type === 'lookout' || g.type === 'dog') continue;
     if (dist(g.x, g.y, x, y) < 300 && !g.chase) {
       g.investigating = { x, y, t: 6 };
       g.suspicion = Math.max(0, g.suspicion - 0.4);

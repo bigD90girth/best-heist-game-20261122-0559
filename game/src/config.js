@@ -45,6 +45,11 @@ export const TUNE = {
   lookoutFov: (Math.PI * 100) / 180,
   lookoutRange: 300,
   lookoutSuspicion: 1.95, // lookouts spot you faster — they do nothing else
+  dogRange: 150, // dogs see only a short way — but they are fast
+  dogFov: (Math.PI * 110) / 180,
+  dogSpeed: 152,
+  dogSuspicion: 1.9, // dogs spot you fast once you are in range
+  keycardRadius: 30,
   laserAlarmPerSecond: 12,
   laserOnFraction: 0.6, // lasers are live 60% of each cycle, dark the rest
   cameraFov: (Math.PI * 62) / 180,

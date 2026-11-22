@@ -23,6 +23,8 @@ const game = {
   cameras: [],
   lasers: [],
   laserTripped: false,
+  keycard: null, // {x, y, taken} — opens the level's red key door
+  keyDoorRect: null, // the locked door rect, removed from blockers on pickup
   loot: [],
   vault: null,
   coins: [], // tossed coins on the floor
@@ -48,7 +50,7 @@ const game = {
   lastSeen: null,
   banner: null,
   bannerT: 0,
-  hintText: 'Pick a job below — or press 1-7 to jump straight in.',
+  hintText: 'Pick a job below — or press 1-9 to jump straight in.',
   cleared: new Set(),
   muted: false,
   clearBonus: 0,
@@ -66,6 +68,8 @@ export function startLevel(index) {
   game.cameras = level.cameras.map(makeCamera);
   game.lasers = (level.lasers ?? []).map((l) => ({ ...l }));
   game.laserTripped = false;
+  game.keycard = level.keycard ? { ...level.keycard, taken: false } : null;
+  game.keyDoorRect = level.keyDoor ? { ...level.keyDoor } : null;
   game.loot = level.loot.map((l) => ({ ...l, taken: false }));
   game.vault = level.vault ? { ...level.vault, cracked: false, cracking: 0 } : null;
   game.coins = [];
@@ -75,6 +79,7 @@ export function startLevel(index) {
   game.blockers = [
     ...level.walls,
     ...level.cover,
+    ...(game.keyDoorRect ? [game.keyDoorRect] : []),
     { x: ROOM.x - 20, y: ROOM.y - 20, w: 20, h: ROOM.h + 40 },
     { x: ROOM.x + ROOM.w, y: ROOM.y - 20, w: 20, h: ROOM.h + 40 },
     { x: ROOM.x - 20, y: ROOM.y - 20, w: ROOM.w + 40, h: 20 },
@@ -213,6 +218,18 @@ function updatePlay(dt) {
     game.timeLeft = 0;
     busted('Time ran out — the morning crew walked in.');
     return;
+  }
+
+  // Keycard pickup: grab the gold card and the red key door swings open.
+  const kc = game.keycard;
+  if (kc && !kc.taken && dist(game.thief.x, game.thief.y, kc.x, kc.y) < TUNE.keycardRadius) {
+    kc.taken = true;
+    if (game.keyDoorRect) {
+      game.blockers = game.blockers.filter((b) => b !== game.keyDoorRect);
+      game.keyDoorRect = null;
+    }
+    audio.sfxPickup();
+    showBanner('KEYCARD — the red door is open!');
   }
 
   // Loot pickup.
@@ -399,7 +416,7 @@ function updateScreens(dt) {
 
 // Number keys are not in the input map; watch them directly.
 window.addEventListener('keydown', (e) => {
-  if (/^Digit[1-7]$/.test(e.code)) input.pressed.add(`digit${e.code.slice(5)}`);
+  if (/^Digit[1-9]$/.test(e.code)) input.pressed.add(`digit${e.code.slice(5)}`);
   if (e.code === 'KeyT' && game.screen === 'busted') game.screen = 'title';
   if (e.code === 'KeyM') game.muted = audio.toggleMute();
 });
@@ -418,7 +435,11 @@ function frame(now) {
 // Boot: title screen shows level 1's room alive behind the panel.
 startLevel(0);
 game.screen = 'title';
-game.hintText = 'Pick a job below — or press 1-7 to jump straight in.';
+game.hintText = 'Pick a job below — or press 1-9 to jump straight in.';
+
+// Debug handle for automated playtests (exposes the live game object and
+// the level loader; no gameplay effect, nothing reads it during play).
+window.__test = { game, startLevel };
 
 // Deterministic staged frames for screenshots (?shot=start|play|alarm|win).
 if (applyShot(game, startLevel, { LEVELS })) {

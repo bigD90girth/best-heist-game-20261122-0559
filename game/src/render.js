@@ -14,6 +14,8 @@ export function drawGame(ctx, game) {
   drawVault(ctx, game);
   drawCover(ctx, game);
   drawWalls(ctx, game);
+  drawKeyDoor(ctx, game);
+  drawKeycard(ctx, game);
   drawLasers(ctx, game);
   drawCones(ctx, game);
   drawCameras(ctx, game);
@@ -109,6 +111,56 @@ function drawLoot(ctx, game) {
     ctx.font = 'bold 12px system-ui, sans-serif';
     ctx.fillText(money(item.value), item.x, item.y + 36 + bob);
   }
+}
+
+function drawKeycard(ctx, game) {
+  const kc = game.keycard;
+  if (!kc || kc.taken) return;
+  const bob = Math.sin(game.time * 3 + kc.x) * 3;
+  ctx.save();
+  ctx.translate(kc.x, kc.y + bob);
+  const g = ctx.createRadialGradient(0, 0, 4, 0, 0, 46);
+  g.addColorStop(0, 'rgba(245,197,66,0.5)');
+  g.addColorStop(1, 'rgba(245,197,66,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, 0, 46, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f5c542';
+  ctx.fillRect(-16, -10, 32, 20);
+  ctx.strokeStyle = '#8a6d1f';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-16, -10, 32, 20);
+  ctx.fillStyle = '#8a6d1f';
+  ctx.fillRect(-11, -5, 8, 10);
+  ctx.fillStyle = P.goldGlow;
+  ctx.font = 'bold 12px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('KEYCARD', 0, 34);
+  ctx.restore();
+}
+
+function drawKeyDoor(ctx, game) {
+  const d = game.keyDoorRect;
+  if (!d) return;
+  const horizontal = d.w >= d.h;
+  ctx.save();
+  // Red striped barrier filling the gap in the wall.
+  ctx.fillStyle = '#5e1620';
+  ctx.fillRect(d.x, d.y, d.w, d.h);
+  ctx.strokeStyle = '#ff2d3f';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(d.x, d.y, d.w, d.h);
+  ctx.fillStyle = 'rgba(255,45,63,0.55)';
+  const n = Math.floor((horizontal ? d.w : d.h) / 14);
+  for (let i = 0; i < n; i += 1) {
+    if (horizontal) ctx.fillRect(d.x + i * 14 + 4, d.y + 2, 6, d.h - 4);
+    else ctx.fillRect(d.x + 2, d.y + i * 14 + 4, d.w - 4, 6);
+  }
+  ctx.fillStyle = '#ffb3ba';
+  ctx.font = 'bold 11px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  if (horizontal) ctx.fillText('🔒 KEYCARD DOOR', d.x + d.w / 2, d.y - 8 < ROOM.y + 12 ? d.y + d.h + 16 : d.y - 8);
+  else ctx.fillText('🔒 KEYCARD', d.x + d.w / 2, d.y - 8);
+  ctx.restore();
 }
 
 function drawVault(ctx, game) {
@@ -231,9 +283,10 @@ function drawCones(ctx, game) {
   for (const g of game.guards) {
     const hot = g.alerted || g.chase;
     const lookout = g.type === 'lookout';
+    const dog = g.type === 'dog';
     wedge(ctx, g.x, g.y, g.angle,
-      lookout ? TUNE.lookoutRange : TUNE.guardRange,
-      lookout ? TUNE.lookoutFov : TUNE.guardFov,
+      lookout ? TUNE.lookoutRange : dog ? TUNE.dogRange : TUNE.guardRange,
+      lookout ? TUNE.lookoutFov : dog ? TUNE.dogFov : TUNE.guardFov,
       hot ? 'rgba(255,77,94,0.32)' : P.cone,
       hot ? 'rgba(255,77,94,0.7)' : P.coneEdge);
   }
@@ -267,6 +320,7 @@ function drawCameras(ctx, game) {
 function drawGuards(ctx, game) {
   for (const g of game.guards) {
     const lookout = g.type === 'lookout';
+    const dog = g.type === 'dog';
     // Lookouts stand on a marked post; patrollers walk the floor.
     if (lookout) {
       ctx.strokeStyle = 'rgba(245,197,66,0.8)';
@@ -280,14 +334,21 @@ function drawGuards(ctx, game) {
     ctx.translate(g.x, g.y);
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath(); ctx.ellipse(2, 4, 15, 12, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = lookout ? '#8a2438' : '#46538a';
+    ctx.fillStyle = lookout ? '#8a2438' : dog ? '#8a5a2b' : '#46538a';
     ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#dfe6ff';
     ctx.lineWidth = 2;
     ctx.stroke();
-    ctx.fillStyle = lookout ? '#ffd94d' : P.guardHat;
-    ctx.beginPath(); ctx.arc(0, -2, 10, Math.PI, 0); ctx.fill();
-    ctx.fillRect(-11, -4, 22, 3);
+    if (dog) {
+      // Pointed ears instead of a guard cap, so dogs read at a glance.
+      ctx.fillStyle = '#5e3a17';
+      ctx.beginPath(); ctx.moveTo(-11, -8); ctx.lineTo(-6, -20); ctx.lineTo(-1, -9); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(1, -9); ctx.lineTo(6, -20); ctx.lineTo(11, -8); ctx.closePath(); ctx.fill();
+    } else {
+      ctx.fillStyle = lookout ? '#ffd94d' : P.guardHat;
+      ctx.beginPath(); ctx.arc(0, -2, 10, Math.PI, 0); ctx.fill();
+      ctx.fillRect(-11, -4, 22, 3);
+    }
     const fx = Math.cos(g.angle) * 16;
     const fy = Math.sin(g.angle) * 16;
     ctx.strokeStyle = '#ffffff';
@@ -299,6 +360,12 @@ function drawGuards(ctx, game) {
       ctx.font = 'bold 10px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('LOOKOUT', g.x, g.y + 34);
+    }
+    if (dog) {
+      ctx.fillStyle = '#e8b06a';
+      ctx.font = 'bold 10px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('DOG', g.x, g.y + 34);
     }
     // Suspicion / alert mark.
     if (g.suspicion > 0.12 || g.alerted) {
@@ -485,7 +552,7 @@ function panel(ctx, title, lines, accent, dim = 0.82) {
 function drawScreen(ctx, game) {
   if (game.screen === 'title') {
     panel(ctx, 'THE VELVET VAULT', [
-      'Seven jobs. Seven rooms. One crew, one getaway driver, no plan B.',
+      'Nine jobs. Nine rooms. One crew, one getaway driver, no plan B.',
       'Cross each room, dodge the guards and their vision cones,',
       'beat the cameras and the lasers, grab every piece of loot, reach the green door.',
       'Click anywhere or press ENTER to pick a job — H shows how to play.',
@@ -533,12 +600,12 @@ function drawScreen(ctx, game) {
 }
 
 function drawLevelList(ctx, game) {
-  const y0 = VIEW_H / 2 + 138;
+  const y0 = VIEW_H / 2 + 118;
   ctx.textAlign = 'left';
-  ctx.font = '16px system-ui, sans-serif';
+  ctx.font = '15px system-ui, sans-serif';
   game.levelButtons = [];
   LEVELS_LIST.forEach((lv, i) => {
-    const y = y0 + i * 34;
+    const y = y0 + i * 28;
     const done = game.cleared.has(i);
     ctx.fillStyle = done ? P.safe : P.text;
     ctx.fillText(`${done ? '✓' : `${i + 1}.`}  ${lv.name} — ${lv.sub}`, VIEW_W / 2 - 300, y);
