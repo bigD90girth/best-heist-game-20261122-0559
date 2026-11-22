@@ -5,16 +5,20 @@
 import { TUNE, angleDiff, clamp, dist, segmentHitsRect } from './config.js';
 
 export function makeGuard(def) {
-  const [sx, sy] = def.path[0];
+  // Lookouts stand a fixed post (x, y, base facing); patrollers walk a path.
+  const [sx, sy] = def.type === 'lookout' ? [def.x, def.y] : def.path[0];
   return {
-    path: def.path,
+    type: def.type ?? 'patrol',
+    base: def.base ?? 0,
+    path: def.path ?? [[sx, sy]],
     pause: def.pause ?? 1.2,
     x: sx,
     y: sy,
-    angle: 0,
+    angle: def.base ?? 0,
     wp: 1,
     wait: 0,
     scan: 0,
+    searchT: 0, // seconds left searching the last-seen spot
     suspicion: 0,
     alerted: false,
     investigating: null, // {x, y, t}
@@ -38,21 +42,33 @@ export function canSee(gx, gy, angle, range, fov, tx, ty, blockers) {
 
 export function updateGuard(g, dt, game) {
   const { thief, blockers } = game;
-  const range = thief.sneaking ? TUNE.guardRange * 0.62 : TUNE.guardRange;
-  const seen = !thief.hidden && !game.smokeActive && canSee(g.x, g.y, g.angle, range, TUNE.guardFov, thief.x, thief.y, blockers);
+  const isLookout = g.type === 'lookout';
+  const range = isLookout
+    ? TUNE.lookoutRange
+    : thief.sneaking ? TUNE.guardRange * 0.62 : TUNE.guardRange;
+  const fov = isLookout ? TUNE.lookoutFov : TUNE.guardFov;
+  const seen = !thief.hidden && !game.smokeActive && canSee(g.x, g.y, g.angle, range, fov, thief.x, thief.y, blockers);
   g.seen = seen;
 
-  // Suspicion grows faster up close and when the thief runs.
+  // Suspicion grows faster up close and when the thief runs; lookouts are sharper.
   if (seen) {
     const closeness = 1 - dist(g.x, g.y, thief.x, thief.y) / range;
-    const rate = TUNE.suspicionRate * (0.7 + closeness * 1.1) * (thief.sneaking ? 0.7 : 1);
+    const rate = (isLookout ? TUNE.lookoutSuspicion : TUNE.suspicionRate)
+      * (0.7 + closeness * 1.1) * (thief.sneaking ? 0.7 : 1);
     g.suspicion = clamp(g.suspicion + rate * dt, 0, 1);
     game.lastSeen = { x: thief.x, y: thief.y, t: game.time };
   } else {
     g.suspicion = clamp(g.suspicion - TUNE.suspicionDecay * dt, 0, 1);
   }
-  g.alerted = g.suspicion > 0.55;
-  g.chase = game.lockdown || (g.alerted && seen);
+  g.alerted = g.suspicion > 0.55 || g.searchT > 0;
+  g.chase = !isLookout && (game.lockdown || (g.alerted && seen));
+
+  // Lookouts never move: they sweep a wide arc around their post.
+  if (isLookout) {
+    g.scan += dt;
+    g.angle = g.base + Math.sin(g.scan * 0.45) * 1.9;
+    return;
+  }
 
   // Coin investigation: walk to the coin, look around, resume patrol.
   if (g.investigating) {
@@ -75,11 +91,20 @@ export function updateGuard(g, dt, game) {
   }
 
   if (g.alerted && game.lastSeen) {
-    moveToward(g, game.lastSeen.x, game.lastSeen.y, TUNE.guardSpeed * 1.25, dt);
-    if (dist(g.x, g.y, game.lastSeen.x, game.lastSeen.y) < 24) {
-      g.alerted = false;
-      g.suspicion = 0.3;
+    // Reached the last-seen spot: stop and search it, scanning around,
+    // then give up and go back to the patrol route.
+    if (g.searchT > 0) {
+      g.searchT -= dt;
+      g.angle += dt * 2.4;
+      if (g.searchT <= 0) {
+        g.searchT = 0;
+        g.alerted = false;
+        g.suspicion = 0.3;
+      }
+      return;
     }
+    moveToward(g, game.lastSeen.x, game.lastSeen.y, TUNE.guardSpeed * 1.25, dt);
+    if (dist(g.x, g.y, game.lastSeen.x, game.lastSeen.y) < 24) g.searchT = 2.5;
     return;
   }
 
@@ -117,10 +142,12 @@ export function guardCatchesThief(g, thief) {
   return !thief.hidden && dist(g.x, g.y, thief.x, thief.y) < TUNE.catchRadius;
 }
 
-// Send every guard in earshot to look at a tossed coin.
+// Send every patrolling guard in earshot to look at a tossed coin.
+// Lookouts hold their post — a coin never moves them.
 export function distractGuards(guards, x, y) {
   let n = 0;
   for (const g of guards) {
+    if (g.type === 'lookout') continue;
     if (dist(g.x, g.y, x, y) < 300 && !g.chase) {
       g.investigating = { x, y, t: 6 };
       g.suspicion = Math.max(0, g.suspicion - 0.4);

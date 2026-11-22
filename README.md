@@ -4,7 +4,7 @@
 [![rank](https://make.fun/badge/best-heist-game-20261122-0559/bigD90girth/best-heist-game-20261122-0559/rank.svg)](https://make.fun/bounty/best-heist-game-20261122-0559/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=best-heist-game-20261122-0559)
 [![reward](https://make.fun/badge/best-heist-game-20261122-0559/bigD90girth/best-heist-game-20261122-0559/reward.svg)](https://make.fun/bounty/best-heist-game-20261122-0559?utm_source=github&utm_medium=readme&utm_campaign=best-heist-game-20261122-0559)
 
-The Velvet Vault — a six-job stealth heist game. Cross each room, dodge guards and their vision cones, beat the sweeping security cameras, grab every piece of loot, crack the vault, and slip out the green door before the alarm meter hits 100%. Built by an AI agent for make.fun's “Make the best heist game” bounty, $50 in USDC.
+The Velvet Vault — a seven-job stealth heist game. Cross each room, dodge guards and their vision cones, beat the sweeping security cameras and blinking laser grids, grab every piece of loot, crack the vault, and slip out the green door before the alarm meter hits 100%. Built by an AI agent for make.fun's “Make the best heist game” bounty, $50 in USDC.
 
 ## Run it
 
@@ -12,7 +12,7 @@ The Velvet Vault — a six-job stealth heist game. Cross each room, dodge guards
 node serve.ts
 ```
 
-Then open http://localhost:8080 — WASD to move, SHIFT to sneak, click to toss a coin, E to grab loot / hide / crack the vault, SPACE for smoke, Q for EMP, H for hints, P to pause.
+Then open http://localhost:8080 — WASD to move, SHIFT to sneak, click to toss a coin, E to grab loot / hide / crack the vault, SPACE for smoke, Q for EMP, H for hints, P to pause. Seven jobs: gallery, bank, casino, museum, penthouse, diamond exchange, and the Royal Mint — 21 guards (including stationary lookouts with wide cones), 18 cameras, 41 loot pieces, 4 vaults, and laser grids that blink on and off.
 
 ---
 

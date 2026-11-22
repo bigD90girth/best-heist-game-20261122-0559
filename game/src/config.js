@@ -42,6 +42,11 @@ export const TUNE = {
   guardChase: 168,
   guardFov: (Math.PI * 72) / 180,
   guardRange: 225,
+  lookoutFov: (Math.PI * 100) / 180,
+  lookoutRange: 300,
+  lookoutSuspicion: 1.95, // lookouts spot you faster — they do nothing else
+  laserAlarmPerSecond: 12,
+  laserOnFraction: 0.6, // lasers are live 60% of each cycle, dark the rest
   cameraFov: (Math.PI * 62) / 180,
   cameraRange: 250,
   alarmPerSecondSeen: 11,
@@ -116,6 +121,22 @@ export function circleVsRect(cx, cy, radius, r) {
   if (d2 === 0) return { x: cx, y: r.y - radius };
   const d = Math.sqrt(d2);
   return { x: cx + (dx / d) * (radius - d), y: cy + (dy / d) * (radius - d) };
+}
+
+// Circle vs rect hit test (true when they touch): lasers and loot use it.
+export function circleHitsRect(cx, cy, radius, r) {
+  const nx = clamp(cx, r.x, r.x + r.w);
+  const ny = clamp(cy, r.y, r.y + r.h);
+  const dx = cx - nx;
+  const dy = cy - ny;
+  return dx * dx + dy * dy < radius * radius;
+}
+
+// A laser beam is live for the first laserOnFraction of each cycle.
+export function laserActive(laser, time) {
+  const period = laser.period ?? 4;
+  const offset = laser.offset ?? 0;
+  return ((time + offset) % period) < period * TUNE.laserOnFraction;
 }
 
 export function formatTime(seconds) {

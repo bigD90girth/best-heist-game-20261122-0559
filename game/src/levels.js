@@ -242,6 +242,60 @@ export const LEVELS = [
       { x: 640, y: 700, kind: 'mask', value: 1000 },
     ],
   }),
+  L({
+    name: '7 · The Royal Mint',
+    sub: 'The final job. Lookouts, blinking lasers and the crown jewels.',
+    hint: 'Lasers blink — cross while dark. Lookouts never move.',
+    spawn: [96, 150],
+    exit: { x: 60, y: 692 },
+    vault: { x: 640, y: 120, value: 3500 },
+    coins: 6,
+    smoke: 3,
+    emp: 2,
+    time: 210,
+    walls: [
+      { x: 420, y: 92, w: 18, h: 280 },
+      { x: 860, y: 470, w: 18, h: 270 },
+      { x: 560, y: 380, w: 160, h: 18 },
+    ],
+    cover: [
+      { x: 180, y: 300, w: 84, h: 52, kind: 'desk' },
+      { x: 1080, y: 300, w: 84, h: 52, kind: 'desk' },
+      { x: 180, y: 580, w: 74, h: 52, kind: 'crate' },
+      { x: 1080, y: 580, w: 74, h: 52, kind: 'crate' },
+      { x: 300, y: 420, w: 66, h: 46, kind: 'wardrobe', hide: true },
+      { x: 980, y: 160, w: 66, h: 46, kind: 'wardrobe', hide: true },
+      { x: 960, y: 640, w: 60, h: 60, kind: 'plant' },
+    ],
+    // Lasers guard the vault approach, the east corridor and the south floor.
+    // Each blinks: live 60% of its cycle, dark the rest — time your crossing.
+    lasers: [
+      { x: 480, y: 210, w: 320, h: 10, period: 4, offset: 0 },
+      { x: 900, y: 420, w: 10, h: 220, period: 5, offset: 2 },
+      { x: 240, y: 560, w: 360, h: 10, period: 3.5, offset: 1 },
+    ],
+    guards: [
+      // Lookouts stand their post and sweep a wide arc — never patrol.
+      { type: 'lookout', x: 640, y: 330, base: Math.PI / 2 },
+      { type: 'lookout', x: 1080, y: 420, base: Math.PI },
+      { path: [[120, 200], [360, 200], [360, 420], [120, 420]], pause: 1.2 },
+      { path: [[700, 520], [1100, 520], [1100, 680], [700, 680]], pause: 1.0 },
+    ],
+    cameras: [
+      { x: 640, y: 96, angle: Math.PI / 2, sweep: 1.1, period: 4 },
+      { x: 42, y: 240, angle: 0, sweep: 0.9, period: 5 },
+      { x: 1238, y: 620, angle: Math.PI, sweep: 1.0, period: 4.5 },
+    ],
+    loot: [
+      { x: 640, y: 240, kind: 'crown', value: 1200 },
+      { x: 120, y: 120, kind: 'gem', value: 800 },
+      { x: 1160, y: 120, kind: 'gold', value: 600 },
+      { x: 120, y: 700, kind: 'gem', value: 800 },
+      { x: 1160, y: 700, kind: 'gold', value: 600 },
+      { x: 300, y: 620, kind: 'chips', value: 400 },
+      { x: 980, y: 620, kind: 'painting', value: 450 },
+    ],
+  }),
 ];
 
 export const LOOT_KINDS = {
@@ -251,4 +305,5 @@ export const LOOT_KINDS = {
   gem: { label: 'Gem', color: '#5ef2d6', glyph: '◆' },
   chips: { label: 'Chips', color: '#ff7ab8', glyph: '●' },
   mask: { label: 'Jade mask', color: '#8dff6e', glyph: '◉' },
+  crown: { label: 'Crown', color: '#ffd94d', glyph: '♛' },
 };

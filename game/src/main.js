@@ -1,7 +1,7 @@
 // The Velvet Vault — main: game state, the loop, loot, vaults, hiding,
 // gadgets, alarm and lockdown, scoring, screens and the ?shot= presets.
 
-import { VIEW_W, VIEW_H, ROOM, TUNE, clamp, dist, circleVsRect, money } from './config.js';
+import { VIEW_W, VIEW_H, ROOM, TUNE, clamp, dist, circleVsRect, circleHitsRect, laserActive, money } from './config.js';
 import { LEVELS } from './levels.js';
 import { makeGuard, updateGuard, guardCatchesThief, distractGuards } from './guards.js';
 import { makeCamera, updateCamera, empBlast } from './cameras.js';
@@ -21,6 +21,8 @@ const game = {
   level: LEVELS[0],
   guards: [],
   cameras: [],
+  lasers: [],
+  laserTripped: false,
   loot: [],
   vault: null,
   coins: [], // tossed coins on the floor
@@ -46,7 +48,7 @@ const game = {
   lastSeen: null,
   banner: null,
   bannerT: 0,
-  hintText: 'Pick a job below — or press 1-6 to jump straight in.',
+  hintText: 'Pick a job below — or press 1-7 to jump straight in.',
   cleared: new Set(),
   muted: false,
   clearBonus: 0,
@@ -62,6 +64,8 @@ export function startLevel(index) {
   game.level = level;
   game.guards = level.guards.map(makeGuard);
   game.cameras = level.cameras.map(makeCamera);
+  game.lasers = (level.lasers ?? []).map((l) => ({ ...l }));
+  game.laserTripped = false;
   game.loot = level.loot.map((l) => ({ ...l, taken: false }));
   game.vault = level.vault ? { ...level.vault, cracked: false, cracking: 0 } : null;
   game.coins = [];
@@ -136,6 +140,30 @@ function updatePlay(dt) {
   // Guards and cameras.
   for (const g of game.guards) updateGuard(g, dt, game);
   for (const c of game.cameras) updateCamera(c, dt, game);
+
+  // Lasers: a live beam trips the alarm and calls the guards to your spot.
+  // Time the blink — cross while the beam is dark and nothing happens.
+  let inLaser = false;
+  for (const lz of game.lasers) {
+    if (laserActive(lz, game.time) && circleHitsRect(game.thief.x, game.thief.y, game.thief.r, lz)) {
+      inLaser = true;
+      break;
+    }
+  }
+  if (inLaser && !game.thief.hidden && !game.smokeActive) {
+    game.alarm += TUNE.laserAlarmPerSecond * dt;
+    if (!game.laserTripped) {
+      game.laserTripped = true;
+      showBanner('LASER TRIPPED!');
+      audio.sfxAlert();
+      game.lastSeen = { x: game.thief.x, y: game.thief.y, t: game.time };
+      for (const g of game.guards) {
+        if (g.type !== 'lookout') g.suspicion = Math.max(g.suspicion, 0.7);
+      }
+    }
+  } else if (!inLaser) {
+    game.laserTripped = false;
+  }
 
   // Alarm: rises while seen, falls when quiet.
   const seenByGuard = game.guards.some((g) => g.seen);
@@ -371,7 +399,7 @@ function updateScreens(dt) {
 
 // Number keys are not in the input map; watch them directly.
 window.addEventListener('keydown', (e) => {
-  if (/^Digit[1-6]$/.test(e.code)) input.pressed.add(`digit${e.code.slice(5)}`);
+  if (/^Digit[1-7]$/.test(e.code)) input.pressed.add(`digit${e.code.slice(5)}`);
   if (e.code === 'KeyT' && game.screen === 'busted') game.screen = 'title';
   if (e.code === 'KeyM') game.muted = audio.toggleMute();
 });
@@ -390,7 +418,7 @@ function frame(now) {
 // Boot: title screen shows level 1's room alive behind the panel.
 startLevel(0);
 game.screen = 'title';
-game.hintText = 'Pick a job below — or press 1-6 to jump straight in.';
+game.hintText = 'Pick a job below — or press 1-7 to jump straight in.';
 
 // Deterministic staged frames for screenshots (?shot=start|play|alarm|win).
 if (applyShot(game, startLevel, { LEVELS })) {

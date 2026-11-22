@@ -1,4 +1,4 @@
-// The Velvet Vault — a six-job stealth heist game (Node 22, standard library
+// The Velvet Vault — a seven-job stealth heist game (Node 22, standard library
 // only). The game is this directory's game/ folder: plain static files a
 // desktop browser loads offline (game/index.html and its ES modules, no
 // library and no network request). This program hands it in: it copies

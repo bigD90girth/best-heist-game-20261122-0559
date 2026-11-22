@@ -3,7 +3,7 @@
 // cameras, the loot target and the alarm meter. Safe cover is teal-dark,
 // danger is red and gold, loot glows gold.
 
-import { PALETTE as P, ROOM, TUNE, VIEW_W, VIEW_H, HUD_H, clamp, formatTime, money } from './config.js';
+import { PALETTE as P, ROOM, TUNE, VIEW_W, VIEW_H, HUD_H, clamp, formatTime, money, laserActive } from './config.js';
 import { LOOT_KINDS } from './levels.js';
 import { cameraAngle } from './cameras.js';
 
@@ -14,14 +14,27 @@ export function drawGame(ctx, game) {
   drawVault(ctx, game);
   drawCover(ctx, game);
   drawWalls(ctx, game);
+  drawLasers(ctx, game);
   drawCones(ctx, game);
   drawCameras(ctx, game);
   drawGuards(ctx, game);
   drawCoins(ctx, game);
   drawThief(ctx, game);
   drawHud(ctx, game);
+  drawAlarmVignette(ctx, game);
   drawBanner(ctx, game);
   if (game.screen !== 'play') drawScreen(ctx, game);
+}
+
+// Red edge glow while the alarm is high — readable even without the HUD.
+function drawAlarmVignette(ctx, game) {
+  if (game.screen !== 'play' || game.alarm < 70) return;
+  const pulse = 0.22 + Math.sin(game.time * 6) * 0.12;
+  ctx.save();
+  ctx.strokeStyle = `rgba(255,45,63,${pulse})`;
+  ctx.lineWidth = 12;
+  ctx.strokeRect(6, 6, VIEW_W - 12, VIEW_H - 12);
+  ctx.restore();
 }
 
 function drawFloor(ctx, game) {
@@ -141,6 +154,52 @@ function drawCover(ctx, game) {
   }
 }
 
+function drawLasers(ctx, game) {
+  for (const lz of game.lasers ?? []) {
+    const active = laserActive(lz, game.time);
+    const horizontal = lz.w >= lz.h;
+    const cx = lz.x + lz.w / 2;
+    const cy = lz.y + lz.h / 2;
+    // Emitter posts at both ends.
+    for (const [px, py] of horizontal ? [[lz.x, cy], [lz.x + lz.w, cy]] : [[cx, lz.y], [cx, lz.y + lz.h]]) {
+      ctx.fillStyle = '#3a1520';
+      ctx.fillRect(px - 6, py - 6, 12, 12);
+      ctx.fillStyle = active ? P.danger : '#7a2b36';
+      ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.save();
+    if (active) {
+      ctx.strokeStyle = 'rgba(255,45,63,0.35)';
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      if (horizontal) { ctx.moveTo(lz.x, cy); ctx.lineTo(lz.x + lz.w, cy); }
+      else { ctx.moveTo(cx, lz.y); ctx.lineTo(cx, lz.y + lz.h); }
+      ctx.stroke();
+      ctx.strokeStyle = '#ff2d3f';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      if (horizontal) { ctx.moveTo(lz.x, cy); ctx.lineTo(lz.x + lz.w, cy); }
+      else { ctx.moveTo(cx, lz.y); ctx.lineTo(cx, lz.y + lz.h); }
+      ctx.stroke();
+    } else {
+      // Dark beam: faint dashed line so the player can still read the gap.
+      ctx.setLineDash([8, 8]);
+      ctx.strokeStyle = 'rgba(255,77,94,0.35)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      if (horizontal) { ctx.moveTo(lz.x, cy); ctx.lineTo(lz.x + lz.w, cy); }
+      else { ctx.moveTo(cx, lz.y); ctx.lineTo(cx, lz.y + lz.h); }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.fillStyle = active ? P.danger : 'rgba(255,120,130,0.7)';
+    ctx.font = 'bold 10px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(active ? 'LASER — LIVE' : 'LASER — DARK', cx, lz.y - 8 < ROOM.y + 12 ? lz.y + lz.h + 16 : lz.y - 8);
+    ctx.restore();
+  }
+}
+
 function drawWalls(ctx, game) {
   for (const w of game.level.walls) {
     ctx.fillStyle = P.wall;
@@ -171,7 +230,10 @@ function wedge(ctx, x, y, angle, range, fov, fill, edge) {
 function drawCones(ctx, game) {
   for (const g of game.guards) {
     const hot = g.alerted || g.chase;
-    wedge(ctx, g.x, g.y, g.angle, TUNE.guardRange, TUNE.guardFov,
+    const lookout = g.type === 'lookout';
+    wedge(ctx, g.x, g.y, g.angle,
+      lookout ? TUNE.lookoutRange : TUNE.guardRange,
+      lookout ? TUNE.lookoutFov : TUNE.guardFov,
       hot ? 'rgba(255,77,94,0.32)' : P.cone,
       hot ? 'rgba(255,77,94,0.7)' : P.coneEdge);
   }
@@ -204,25 +266,40 @@ function drawCameras(ctx, game) {
 
 function drawGuards(ctx, game) {
   for (const g of game.guards) {
-    // Body: dark uniform, hat brim, facing tick.
+    const lookout = g.type === 'lookout';
+    // Lookouts stand on a marked post; patrollers walk the floor.
+    if (lookout) {
+      ctx.strokeStyle = 'rgba(245,197,66,0.8)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(g.x, g.y, 22, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = 'rgba(245,197,66,0.12)';
+      ctx.beginPath(); ctx.arc(g.x, g.y, 22, 0, Math.PI * 2); ctx.fill();
+    }
+    // Body: brighter uniform with a pale outline so guards read at a glance.
     ctx.save();
     ctx.translate(g.x, g.y);
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath(); ctx.ellipse(2, 4, 15, 12, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = P.guard;
+    ctx.fillStyle = lookout ? '#8a2438' : '#46538a';
     ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#0b0f1f';
+    ctx.strokeStyle = '#dfe6ff';
     ctx.lineWidth = 2;
     ctx.stroke();
-    ctx.fillStyle = P.guardHat;
+    ctx.fillStyle = lookout ? '#ffd94d' : P.guardHat;
     ctx.beginPath(); ctx.arc(0, -2, 10, Math.PI, 0); ctx.fill();
     ctx.fillRect(-11, -4, 22, 3);
     const fx = Math.cos(g.angle) * 16;
     const fy = Math.sin(g.angle) * 16;
-    ctx.strokeStyle = '#c8d2ea';
+    ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(fx, fy); ctx.stroke();
     ctx.restore();
+    if (lookout) {
+      ctx.fillStyle = '#ffd94d';
+      ctx.font = 'bold 10px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('LOOKOUT', g.x, g.y + 34);
+    }
     // Suspicion / alert mark.
     if (g.suspicion > 0.12 || g.alerted) {
       const hot = g.alerted || g.chase;
@@ -232,9 +309,16 @@ function drawGuards(ctx, game) {
       ctx.fillText(hot ? '!' : '?', g.x, g.y - 24);
     }
     if (g.suspicion > 0.05 && !g.alerted) {
-      ctx.strokeStyle = 'rgba(245,197,66,0.85)';
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(245,197,66,0.9)';
+      ctx.lineWidth = 4;
       ctx.beginPath(); ctx.arc(g.x, g.y, 21, -Math.PI / 2, -Math.PI / 2 + g.suspicion * Math.PI * 2); ctx.stroke();
+    }
+    // Searching: a guard who lost you scans the spot — show it.
+    if (g.searchT > 0) {
+      ctx.fillStyle = P.gold;
+      ctx.font = 'bold 13px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('SEARCHING…', g.x, g.y - 40);
     }
   }
 }
@@ -269,6 +353,10 @@ function drawThief(ctx, game) {
   }
   ctx.save();
   ctx.translate(t.x, t.y);
+  // Gold ring so the thief always pops against the dark floor.
+  ctx.strokeStyle = 'rgba(255,233,163,0.9)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI * 2); ctx.stroke();
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
   ctx.beginPath(); ctx.ellipse(2, 4, 14, 11, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = P.thiefCoat;
@@ -314,7 +402,7 @@ function drawHud(ctx, game) {
   ctx.fillText(`◆ LOOT ${got}/${game.loot.length}   ${money(game.levelScore)}`, 300, 32);
   ctx.fillStyle = P.muted;
   ctx.font = '13px system-ui, sans-serif';
-  ctx.fillText(`SCORE ${money(game.score)}   LEVEL ${game.levelIndex + 1}/6`, 300, 54);
+  ctx.fillText(`SCORE ${money(game.score)}   LEVEL ${game.levelIndex + 1}/${LEVELS_LIST.length}`, 300, 54);
 
   // Alarm meter — the big one, centre-right.
   const ax = 640;
@@ -397,9 +485,9 @@ function panel(ctx, title, lines, accent, dim = 0.82) {
 function drawScreen(ctx, game) {
   if (game.screen === 'title') {
     panel(ctx, 'THE VELVET VAULT', [
-      'Six jobs. Six rooms. One crew, one getaway driver, no plan B.',
+      'Seven jobs. Seven rooms. One crew, one getaway driver, no plan B.',
       'Cross each room, dodge the guards and their vision cones,',
-      'beat the cameras, grab every piece of loot, reach the green door.',
+      'beat the cameras and the lasers, grab every piece of loot, reach the green door.',
       'Click anywhere or press ENTER to pick a job — H shows how to play.',
     ], P.gold, 0.55);
     drawLevelList(ctx, game);
@@ -409,6 +497,9 @@ function drawScreen(ctx, game) {
       'CLICK — toss a coin, guards come to look      E — grab loot, hide, crack the vault',
       'SPACE — smoke bomb (invisible 3s)      Q — EMP, cameras off for 8s',
       'Guards and cameras raise the ALARM when they see you.',
+      'Lasers blink on and off — cross while dark; a trip sounds the alarm.',
+      'Lookouts never move and watch a wide arc — give them room.',
+      'A guard who loses you searches the spot, then goes back to patrol.',
       'At 100% the room locks down — reach the exit or get caught.',
       '',
       'Click or press ENTER to go back.',
@@ -432,8 +523,8 @@ function drawScreen(ctx, game) {
     ], P.safe);
   } else if (game.screen === 'win') {
     panel(ctx, 'THE CREW ESCAPES', [
-      'All six jobs done. The Velvet Vault retires undefeated.',
-      `Final score ${money(game.score)} — loot ${money(game.totalLoot)} across 6 rooms.`,
+      `All ${LEVELS_LIST.length} jobs done. The Velvet Vault retires undefeated.`,
+      `Final score ${money(game.score)} — loot ${money(game.totalLoot)} across ${LEVELS_LIST.length} rooms.`,
       `Times caught: ${game.timesCaught}   ·   Best alarm peak: ${Math.floor(game.bestPeak)}%`,
       '',
       'ENTER — play it all again',
